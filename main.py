@@ -1,17 +1,32 @@
 from fastapi import FastAPI, WebSocket, File, UploadFile, Form
 from fastapi.responses import JSONResponse
 import asyncio
+from scipy.io import wavfile
 import json
 import os
 import uvicorn
 import shutil
-from externals.tortoise.api_fast import TextToSpeech
-from externals.audio_processor import split_text, generate_audio_stream
+#from externals.tortoise.api_fast import TextToSpeech
+#from externals.audio_processor import split_text, generate_audio_stream
 
 app = FastAPI()
 
 #tts = TextToSpeech()
 
+def load_wav_file(file_path):
+    if os.path.exists(file_path):
+        try:
+            sample_rate, data = wavfile.read(file_path)
+            print(f"Sample Rate: {sample_rate} Hz")
+            print(f"Data Shape: {data.shape}")
+            return sample_rate, data
+        except Exception as e:
+            print(f"Error loading WAV file: {e}")
+    else:
+        print("File does not exist at the specified path.")
+
+file_path = 'audio.wav'
+#sample_rate, data = load_wav_file(file_path)
 
 @app.post("/audio")
 async def upload_audio(user_id: str = Form(...), audio_file: UploadFile = File(...)):
@@ -51,12 +66,14 @@ async def websocket_endpoint(websocket: WebSocket):
                     text = message
 
                 text_chunks = split_text(text, max_length=200)
-                for chunk in text_chunks:
-                    audio_stream = generate_audio_stream(chunk, tts, character_name)
+               # for chunk in text_chunks:
+               #     audio_stream = generate_audio_stream(chunk, tts, character_name)
 
-                    for audio_chunk in audio_stream:
-                        audio_data = audio_chunk.cpu().numpy().flatten()
-                        await websocket.send_bytes(audio_data.tobytes())
+               #     for audio_chunk in audio_stream:
+               #         audio_data = audio_chunk.cpu().numpy().flatten()
+                for chunk in text_chunks:
+                    sample_rate, audio_data = load_wav_file(file_path)
+                    await websocket.send_bytes(audio_data.tobytes())
 
                 await websocket.send_text("END_OF_AUDIO")
             except json.JSONDecodeError:
